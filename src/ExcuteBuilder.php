@@ -15,93 +15,142 @@ use Hyperf\Utils\Collection;
  */
 trait ExcuteBuilder
 {
-    //原始方法
-    public function all($body, $method)
+    /**
+     * 执行原始方法
+     * @param $body
+     * @param $method
+     * @return mixed|null
+     * @throws \Exception
+     */
+    public function originClient($body, $method)
     {
         $this->sql = $body;
-        $result = $this->run($method);
-        return $result;
+        return $this->run($method);
     }
 
     /**
-     * 单条插入，存在更新
+     * 单条插入
      * @param array $value
      * @param array $fields
      * @return bool
      * @throws \Exception
      */
-    public function insert(array $value, array $fields = [])
+    public function insert(array $value)
     {
-        $data = empty($fields) ? $value : Arr::only($value, $fields);
         $body = [
             'index' => $this->model->getIndex(),
             'type'  => '_doc',
-            'body'  => $data
+            'body'  => $value,
         ];
-        if (!empty($value['id'])) {
-            $body['id'] = $value['id'];
-        }
         $this->sql = $body;
-        $result = $this->run('index');
 
-        if (!empty($result['result'])) {
-            $this->model->setOriginal($result);
-            $this->model->setAttributes(Arr::merge($body, ['_id' => $result['_id'] ?? '']));
-            return $this->model->getAttributes();
-        } else {
-            return $result;
-        }
+        return $this->run('index');
     }
 
-    public function batchInsert(array $values, array $fields = [])
+    /**
+     * 批量插入
+     * @param array $values
+     * @param array $fields
+     * @return Collection|\Illuminate\Support\Collection
+     * @throws \Exception
+     */
+    public function batchInsert(array $insertData)
     {
         $body = [];
-        foreach ($values as $value) {
-            $tmp = [
-                'index' => ['_index' => $this->model->getIndex()],
+        foreach ($insertData as $key => $value) {
+            $indexData = [
+                'index' => ['_index' => $this->model->getIndex(), '_id' => $key],
             ];
-            if (!empty($value['id'])) {
-                $tmp['index']['_id'] = $value['id'];
-            }
-            $body['body'][] = $tmp;
-            $data = empty($fields) ? $value : Arr::only($value, $fields);
-            $body['body'][] = $data;
+
+            $body['body'][] = $indexData;
+            $body['body'][] = $value;
         }
+
         $this->sql = $body;
         $result = $this->run('bulk');
-
-        $collection = collect($result['items'])->map(function ($value, $key) use ($values) {
+        $collection = collect($result['items'])->map(function ($value, $key) use ($insertData) {
             $model = $this->model->newInstance();
             $model->setOriginal($value);
-            $model->setAttributes(Arr::merge($values[$key] ?? [], ['_id' => $value['index']['_id'] ?? '']));
+            $model->setAttributes($value);
             return $model;
         });
 
         return $collection;
     }
 
-    public function update(array $value, $id)
+    public function batchUpdateOrInsert(array $insertData, $updateFields = [])
+    {
+        $body = [];
+        foreach ($insertData as $key => $value) {
+            $indexData = [
+                'update' => ['_index' => $this->model->getIndex(), '_id' => $key],
+            ];
+
+            $body['body'][] = $indexData;
+            $updateData = empty($updateFields) ? $value : array_intersect_key($value, array_flip($updateFields));
+            $body['body'][] = ['doc' => $updateData, 'upsert' => $value];
+        }
+
+        $this->sql = $body;
+        $result = $this->run('bulk');
+        $collection = collect($result['items'])->map(function ($value, $key) {
+            $model = $this->model->newInstance();
+            $model->setOriginal($value);
+            $model->setAttributes($value);
+            return $model;
+        });
+
+        return $collection;
+    }
+
+    /**
+     * 更新插入数据
+     * @param $id
+     * @param array $updateData
+     * @param array $insertData
+     * @return mixed|null
+     * @throws \Exception
+     */
+    public function updateOrInsert($id, array $insertData, array $updateFields = [])
+    {
+        $updateData = empty($updateFields) ? $insertData : array_intersect_key($insertData, array_flip($updateFields));
+        $body = [
+            'index' => $this->model->getIndex(),
+            'type'  => '_doc',
+            'id'    => $id,
+            'body'  => [
+                'doc'    => $updateData,
+                'upsert' => $insertData,
+            ]
+        ];
+
+        $this->sql = $body;
+
+        return $this->run('update');
+    }
+
+    /**
+     * 单条更新
+     * @param $id
+     * @param array $value
+     * @return mixed|null
+     * @throws \Exception
+     */
+    public function update($id, array $value)
     {
         $body = [
             'index' => $this->model->getIndex(),
             'type'  => '_doc',
             'id'    => $id,
             'body'  => [
-                'doc' => $value
+                'doc' => $value,
             ]
         ];
 
         $this->sql = $body;
-        $result = $this->run('update');
 
-        if (!empty($result['result']) && ($result['result'] == 'updated' || $result['result'] == 'noop')) {
-            $this->model->setOriginal($result);
-            $this->model->setAttributes(['_id' => $result['_id'] ?? '']);
-            return $this->model->getAttributes();
-        }
-        return $result;
+        return $this->run('update');
     }
-
 
     public function updateByQuery(array $body)
     {
@@ -125,12 +174,22 @@ trait ExcuteBuilder
         ];
 
         $this->sql = $body;
-        $result = $this->run('updateByQuery');
 
-        return $result;
+        return $this->run('updateByQuery');
     }
 
-    public function createIndex(array $values, array $settings = [])
+    public function existsIndex()
+    {
+        $body = [
+            'index' => $this->model->getIndex(),
+        ];
+
+        $this->sql = $body;
+
+        return $this->run('indices.exists');
+    }
+
+    public function createIndex(array $values, array $settings = [], $alias = '')
     {
         $properties = [];
         foreach ($values as $key => $value) {
@@ -143,10 +202,6 @@ trait ExcuteBuilder
         $body = [
             'index' => $this->model->getIndex(),
             'body'  => [
-                'settings' => [
-                    'number_of_shards'   => 1,
-                    'number_of_replicas' => 1
-                ],
                 'mappings' => [
                     '_source'    => [
                         'enabled' => true
@@ -155,14 +210,23 @@ trait ExcuteBuilder
                 ]
             ]
         ];
+
         if (!empty($settings)) {
             $body['body']['settings'] = $settings;
+        } else {
+            $body['body']['settings'] = [
+                'number_of_shards'   => 1,
+                'number_of_replicas' => 1
+            ];
+        }
+
+        if (!empty($alias)) {
+            $body['body']['aliases'] = [$alias => new \stdClass()];
         }
 
         $this->sql = $body;
-        $result = $this->run('indices.create');
 
-        return $result;
+        return $this->run('indices.create');
     }
 
     public function updateIndex(array $values)
@@ -187,9 +251,8 @@ trait ExcuteBuilder
         ];
 
         $this->sql = $body;
-        $result = $this->run('indices.putMapping');
 
-        return $result;
+        return $this->run('indices.putMapping');
     }
 
     public function deleteIndex()
@@ -199,9 +262,8 @@ trait ExcuteBuilder
         ];
 
         $this->sql = $body;
-        $result = $this->run('indices.delete');
 
-        return $result;
+        return $this->run('indices.delete');
     }
 
     public function delete($id)
@@ -211,10 +273,8 @@ trait ExcuteBuilder
             'id'    => $id
         ];
         $this->sql = $body;
-        $result = $this->run('delete');
-        return $result;
+        return $this->run('delete');
     }
-
 
     public function deleteByQuery()
     {
@@ -224,25 +284,23 @@ trait ExcuteBuilder
         }
         $body = [
             'index' => $this->model->getIndex(),
-            'body' => [
-                'query'    => $query
+            'body'  => [
+                'query' => $query
             ]
         ];
         $this->sql = $body;
-        $result = $this->run('deleteByQuery');
-        return $result;
+        return $this->run('deleteByQuery');
     }
 
     public function updateSetting($value)
     {
         $body = [
             'index' => $this->model->getIndex(),
-            'body' => $value
+            'body'  => $value
         ];
 
         $this->sql = $body;
-        $result = $this->run('indices.putSettings');
-        return $result;
+        return $this->run('indices.putSettings');
     }
 
     public function updateClusterSetting($value)
@@ -253,8 +311,8 @@ trait ExcuteBuilder
         ];
 
         $this->sql = $body;
-        $result = $this->run('cluster.putSettings');
-        return $result;
+
+        return $this->run('cluster.putSettings');
     }
 
     public function getSetting()
@@ -263,7 +321,6 @@ trait ExcuteBuilder
             'index' => $this->model->getIndex()
         ];
         $this->sql = $body;
-        $result = $this->run('indices.getSettings');
-        return $result;
+        return $this->run('indices.getSettings');
     }
 }

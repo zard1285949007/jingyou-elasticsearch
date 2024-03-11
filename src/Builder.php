@@ -705,15 +705,25 @@ class Builder
         return $collection;
     }
 
-    public function getIndex()
+    public function getIndexConfig()
     {
         $body = [
             'index' => $this->model->getIndex()
         ];
 
         $this->sql = $body;
-        $result = $this->run('indices.getMapping');
 
-        return $result;
+        return $this->run('indices.getMapping');
+    }
+
+    public function getIndex()
+    {
+        return $this->model->getIndex();
+    }
+
+    public function setIndex($index)
+    {
+        $this->model->setIndex($index);
+        return $this;
     }
 }
