@@ -78,13 +78,16 @@ trait ExcuteBuilder
         return $collection;
     }
 
-    public function batchUpdateOrInsert(array $insertData, $updateFields = [])
+    public function batchUpdateOrInsert(array $insertData, $updateFields = [], $useKey=true)
     {
         $body = [];
         foreach ($insertData as $key => $value) {
             $indexData = [
-                'update' => ['_index' => $this->model->getIndex(), '_id' => $key],
+                'update' => ['_index' => $this->model->getIndex()],
             ];
+            if ($useKey) {
+                $indexData['update']['_id'] = $key;
+            }
 
             $body['body'][] = $indexData;
             $updateData = empty($updateFields) ? $value : array_intersect_key($value, array_flip($updateFields));
