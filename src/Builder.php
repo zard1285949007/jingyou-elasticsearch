@@ -504,14 +504,16 @@ class Builder
         if ($this->model->getDebug()) {
             dump($sql);
         }
-        ApplicationContext::getContainer()
-            ->get(LoggerFactory::class)
-            ->get('log', 'elasticsearch')
-            ->info('elasticsearch_sql:', ['method' => $method, 'sql' => json_encode($sql)]);
-        ApplicationContext::getContainer()
-            ->get(LoggerFactory::class)
-            ->get('log', 'elasticsearch')
-            ->info('elasticsearch_param:', ['order' => $this->order, 'group' => $this->group, 'where' => $this->where, 'fields' => $this->fields, 'offset' => $this->offset, 'limit' => $this->limit, 'isAgg' => $this->isAgg, 'isCount' => $this->isCount]);
+        if ($this->model->getLog()) {
+            ApplicationContext::getContainer()
+                ->get(LoggerFactory::class)
+                ->get('log', 'elasticsearch')
+                ->info('elasticsearch_sql:', ['method' => $method, 'sql' => json_encode($sql)]);
+            ApplicationContext::getContainer()
+                ->get(LoggerFactory::class)
+                ->get('log', 'elasticsearch')
+                ->info('elasticsearch_param:', ['order' => $this->order, 'group' => $this->group, 'where' => $this->where, 'fields' => $this->fields, 'offset' => $this->offset, 'limit' => $this->limit, 'isAgg' => $this->isAgg, 'isCount' => $this->isCount]);
+        }
         try {
             $result = call([$client, $method], [$sql]);
 
@@ -529,11 +531,13 @@ class Builder
             if ($this->model->getDebug()) {
                 dump($e->getMessage());
             }
-            ApplicationContext::getContainer()
-                ->get(LoggerFactory::class)
-                ->get('log', 'elasticsearch')
-                ->error('elasticsearch_error:', ['msg' => $e->getMessage()]);
-            throw new \Exception($e->getMessage());
+            if ($this->model->getLog()) {
+                ApplicationContext::getContainer()
+                    ->get(LoggerFactory::class)
+                    ->get('log', 'elasticsearch')
+                    ->error('elasticsearch_error:', ['msg' => $e->getMessage()]);
+                throw new \Exception($e->getMessage());
+            }
         }
 
         return $result;

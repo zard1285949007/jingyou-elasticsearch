@@ -29,6 +29,8 @@ abstract class Model implements Arrayable, Jsonable, JsonSerializable
 
     protected bool $debug = false;
 
+    protected bool $log = true;
+
     use HasAttributes;
 
     public function __construct()
@@ -39,6 +41,12 @@ abstract class Model implements Arrayable, Jsonable, JsonSerializable
     public function getDebug()
     {
         return $this->debug;
+    }
+
+
+    public function getLog()
+    {
+        return $this->log;
     }
 
     /**
@@ -54,7 +62,7 @@ abstract class Model implements Arrayable, Jsonable, JsonSerializable
      */
     public function newQuery()
     {
-        return $this->newModelBuilder()->setModel($this->setDebug());
+        return $this->newModelBuilder()->setModel($this->setDebug()->setLog());
     }
 
     /**
@@ -64,9 +72,13 @@ abstract class Model implements Arrayable, Jsonable, JsonSerializable
     {
         $this->debug = env('ES_DEBUG', false);
         return $this;
-
     }
 
+    public function setLog()
+    {
+        $this->debug = env('ES_LOG', true);
+        return $this;
+    }
 
     /**
      * @return \Elasticsearch\Client
