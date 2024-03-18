@@ -62,21 +62,21 @@ abstract class Model implements Arrayable, Jsonable, JsonSerializable
      */
     public function newQuery()
     {
-        return $this->newModelBuilder()->setModel($this->setDebug()->setLog());
+        return $this->newModelBuilder()->setModel($this);
     }
 
     /**
      * @return Model
      */
-    public function setDebug()
+    public function setDebug($isDebug)
     {
-        $this->debug = env('ES_DEBUG', false);
+        $this->debug = $isDebug;
         return $this;
     }
 
-    public function setLog()
+    public function setLog($isLog)
     {
-        $this->debug = env('ES_LOG', true);
+        $this->debug = $isLog;
         return $this;
     }
 
