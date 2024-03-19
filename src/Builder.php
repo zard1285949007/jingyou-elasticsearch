@@ -531,13 +531,11 @@ class Builder
             if ($this->model->getDebug()) {
                 dump($e->getMessage());
             }
-            if ($this->model->getLog()) {
-                ApplicationContext::getContainer()
-                    ->get(LoggerFactory::class)
-                    ->get('log', 'elasticsearch')
-                    ->error('elasticsearch_error:', ['msg' => $e->getMessage()]);
-                throw new \Exception($e->getMessage());
-            }
+            ApplicationContext::getContainer()
+                ->get(LoggerFactory::class)
+                ->get('log', 'elasticsearch')
+                ->error('elasticsearch_error:', ['msg' => $e->getMessage()]);
+            throw new \Exception($e->getMessage());
         }
 
         return $result;

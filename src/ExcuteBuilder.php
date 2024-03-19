@@ -318,6 +318,20 @@ trait ExcuteBuilder
         return $this->run('cluster.putSettings');
     }
 
+    public function createTemplate($templateName, $indexPattern, $template)
+    {
+        $body = [
+            'name' => $templateName,
+            'body' => [
+                'index_patterns' => [$indexPattern],
+                'mappings' => $template,
+            ],
+        ];
+        $this->sql = $body;
+
+        return $this->run('indices.putTemplate');
+    }
+
     public function getSetting()
     {
         $body = [
