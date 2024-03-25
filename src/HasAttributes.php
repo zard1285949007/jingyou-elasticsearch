@@ -96,6 +96,10 @@ trait HasAttributes
                     case 'float4':
                         $newAttributes[$vField] = round(floatval($attributes[$vField]), 4);
                         break;
+                    case 'keyword':
+                    case 'text':
+                        $newAttributes[$vField] = strval($attributes[$vField]);
+                        break;
                     default: //浮点数默认保存两位小数
                         $newAttributes[$vField] = is_float($attributes[$vField]) ? round($attributes[$vField], 2) : $attributes[$vField] ;
                 }

@@ -153,6 +153,10 @@ class Builder
      */
     public function orderBy(string $column, $direction = 'asc'): Builder
     {
+        $casts = $this->model->getCasts();
+        if (isset($casts[$column]) && $casts[$column] == 'keyword') { //关键字不能排序
+            return $this;
+        }
         $direction = in_array($direction, ['asc', 'desc']) ? $direction : 'asc';
         $this->order = array_merge($this->order, [['sort' => $column, 'order' => $direction]]);
 
@@ -309,11 +313,21 @@ class Builder
                             ]
                         ];
                     } else {
-                        $fieldArr[$vField->aliasField] = [
-                            'max' => [
-                                'field' => $vField->field
-                            ]
-                        ];
+                        $casts = $this->model->getCasts();
+                        if (isset($casts[$vField->aliasField]) && $casts[$vField->aliasField] == 'keyword') {
+                            $fieldArr[$vField->aliasField] = [
+                                'top_hits' => [
+                                    'size'    => 1,
+                                    '_source' => ['includes' => $vField->aliasField],
+                                ]
+                            ];
+                        } else {
+                            $fieldArr[$vField->aliasField] = [
+                                'max' => [
+                                    'field' => $vField->field
+                                ]
+                            ];
+                        }
                     }
                 }
             }
@@ -392,7 +406,7 @@ class Builder
         }
         $groupString = trim($groupString, '+');
         $ifGroupString = trim($ifGroupString, '&');
-        $groupString = "if (".$ifGroupString.") { " . $groupString . " } else { '' }" ;
+        $groupString = "if (" . $ifGroupString . ") { " . $groupString . " } else { '' }";
 
         if (!empty($this->group)) {
             $group = [
@@ -695,6 +709,9 @@ class Builder
                         $attributes[$vKey] = $value[$vKey] ?? '';
                     } else {
                         $attributes[$vKey] = $value[$vKey]['value'] ?? '';
+                        if (empty($attributes[$vKey]) && !empty($value[$vKey]['hits']['hits'][0]['_source'][$vKey])) {
+                            $attributes[$vKey] = $value[$vKey]['hits']['hits'][0]['_source'][$vKey];
+                        }
                     }
                 }
                 $model = $this->model->newInstance();
